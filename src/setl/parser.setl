@@ -1,0 +1,86 @@
+BEGIN
+  Parser := {};
+
+  PROCEDURE Parser.parse(content);
+    result := {
+      content := content,
+      links := {},
+      tags := {}
+    };
+    
+    lines := split(content, "\n");
+    
+    FOR line IN lines DO
+      result.links := result.links + Parser.extract_links(line);
+      result.tags := result.tags + Parser.extract_tags(line);
+    END FOR;
+    
+    RETURN result;
+  END PROCEDURE;
+
+  PROCEDURE Parser.extract_links(text);
+    links := {};
+    pos := 1;
+    
+    WHILE pos <= length(text) DO
+      start := index(text, "[[", pos);
+      IF start = 0 THEN
+        EXIT;
+      END IF;
+      
+      end_pos := index(text, "]]", start + 2);
+      IF end_pos = 0 THEN
+        EXIT;
+      END IF;
+      
+      link := substr(text, start + 2, end_pos - start - 2);
+      links := links WITH link;
+      pos := end_pos + 2;
+    END WHILE;
+    
+    RETURN links;
+  END PROCEDURE;
+
+  PROCEDURE Parser.extract_tags(text);
+    tags := {};
+    pos := 1;
+    
+    WHILE pos <= length(text) DO
+      start := index(text, "#", pos);
+      IF start = 0 THEN
+        EXIT;
+      END IF;
+      
+      IF start = 1 OR substr(text, start - 1, 1) = " " OR substr(text, start - 1, 1) = "\n" THEN
+        tag_end := start + 1;
+        WHILE tag_end <= length(text) AND substr(text, tag_end, 1) /= " " AND substr(text, tag_end, 1) /= "\n" DO
+          tag_end := tag_end + 1;
+        END WHILE;
+        
+        tag := substr(text, start + 1, tag_end - start - 1);
+        IF length(tag) > 0 THEN
+          tags := tags WITH tag;
+        END IF;
+        pos := tag_end;
+      ELSE
+        pos := start + 1;
+      END IF;
+    END WHILE;
+    
+    RETURN tags;
+  END PROCEDURE;
+
+  PROCEDURE Parser.is_valid_title(title);
+    RETURN length(title) > 0 AND NOT any(c IN title | c = "/" OR c = "\\" OR c = ":" OR c = "*" OR c = "?" OR c = "\"" OR c = "<" OR c = ">" OR c = "|");
+  END PROCEDURE;
+
+  PROCEDURE Parser.normalize_title(title);
+    normalized := "";
+    FOR c IN title DO
+      IF c /= "/" AND c /= "\\" AND c /= ":" AND c /= "*" AND c /= "?" AND c /= "\"" AND c /= "<" AND c /= ">" AND c /= "|" THEN
+        normalized := normalized + c;
+      END IF;
+    END FOR;
+    RETURN normalized;
+  END PROCEDURE;
+END;

@@ -1,0 +1,50 @@
+BEGIN
+  include "core.setl";
+  include "parser.setl";
+  include "graph.setl";
+  include "storage.setl";
+
+  PROCEDURE main(args);
+    notes_dir := args[1];
+    IF notes_dir = OM THEN
+      notes_dir := "./notes";
+    END IF;
+
+    storage := Storage.new(notes_dir);
+    core := Core.new(storage);
+    
+    command := args[2];
+    result := OM;
+
+    IF command = "create" THEN
+      title := args[3];
+      content := args[4];
+      result := Core.create_note(core, title, content);
+    ELSIF command = "edit" THEN
+      title := args[3];
+      content := args[4];
+      result := Core.update_note(core, title, content);
+    ELSIF command = "delete" THEN
+      title := args[3];
+      result := Core.delete_note(core, title);
+    ELSIF command = "get" THEN
+      title := args[3];
+      result := Core.get_note(core, title);
+    ELSIF command = "search" THEN
+      query := args[3];
+      result := Core.search_notes(core, query);
+    ELSIF command = "backlinks" THEN
+      title := args[3];
+      result := Core.get_backlinks(core, title);
+    ELSIF command = "graph" THEN
+      result := Core.get_graph(core);
+    ELSIF command = "tags" THEN
+      tag := args[3];
+      result := Core.get_notes_by_tag(core, tag);
+    ELSE
+      result := "Usage: lattice [command] [args...]";
+    END IF;
+
+    print(result);
+  END PROCEDURE;
+END;

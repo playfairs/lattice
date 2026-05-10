@@ -1,0 +1,157 @@
+BEGIN
+  Graph := {
+    nodes := {},
+    edges := {},
+    tags := {},
+    backlinks := {}
+  };
+
+  PROCEDURE Graph.new();
+    RETURN {
+      nodes := {},
+      edges := {},
+      tags := {},
+      backlinks := {}
+    };
+  END PROCEDURE;
+
+  PROCEDURE Graph.add_node(graph, title);
+    graph.nodes := graph.nodes WITH title;
+    IF graph.backlinks[title] = OM THEN
+      graph.backlinks[title] := {};
+    END IF;
+  END PROCEDURE;
+
+  PROCEDURE Graph.add_edge(graph, from, to);
+    IF from IN graph.nodes AND to IN graph.nodes THEN
+      edge_key := from + "->" + to;
+      graph.edges := graph.edges WITH edge_key;
+      
+      IF graph.backlinks[to] = OM THEN
+        graph.backlinks[to] := {};
+      END IF;
+      graph.backlinks[to] := graph.backlinks[to] WITH from;
+    END IF;
+  END PROCEDURE;
+
+  PROCEDURE Graph.add_tag(graph, title, tag);
+    IF graph.tags[tag] = OM THEN
+      graph.tags[tag] := {};
+    END IF;
+    graph.tags[tag] := graph.tags[tag] WITH title;
+  END PROCEDURE;
+
+  PROCEDURE Graph.get_backlinks(graph, title);
+    IF graph.backlinks[title] = OM THEN
+      RETURN {};
+    ELSE
+      RETURN graph.backlinks[title];
+    END IF;
+  END PROCEDURE;
+
+  PROCEDURE Graph.get_notes_by_tag(graph, tag);
+    IF graph.tags[tag] = OM THEN
+      RETURN {};
+    ELSE
+      RETURN graph.tags[tag];
+    END IF;
+  END PROCEDURE;
+
+  PROCEDURE Graph.get_links(graph, title);
+    links := {};
+    FOR edge IN graph.edges DO
+      parts := split(edge, "->");
+      IF parts[1] = title THEN
+        links := links WITH parts[2];
+      END IF;
+    END FOR;
+    RETURN links;
+  END PROCEDURE;
+
+  PROCEDURE Graph.export(graph);
+    result := {
+      nodes := [],
+      edges := [],
+      tags := []
+    };
+    
+    FOR node IN graph.nodes DO
+      result.nodes := result.nodes WITH {id := node, label := node};
+    END FOR;
+    
+    FOR edge IN graph.edges DO
+      parts := split(edge, "->");
+      result.edges := result.edges WITH {from := parts[1], to := parts[2]};
+    END FOR;
+    
+    FOR tag IN graph.tags DO
+      result.tags := result.tags WITH {tag := tag, notes := graph.tags[tag]};
+    END FOR;
+    
+    RETURN result;
+  END PROCEDURE;
+
+  PROCEDURE Graph.get_adjacent(graph, title);
+    adjacent := {};
+    FOR edge IN graph.edges DO
+      parts := split(edge, "->");
+      IF parts[1] = title THEN
+        adjacent := adjacent WITH parts[2];
+      END IF;
+    END FOR;
+    RETURN adjacent;
+  END PROCEDURE;
+
+  PROCEDURE Graph.get_all_tags(graph);
+    tags := {};
+    FOR tag IN graph.tags DO
+      tags := tags WITH tag;
+    END FOR;
+    RETURN tags;
+  END PROCEDURE;
+
+  PROCEDURE Graph.get_connected_components(graph);
+    visited := {};
+    components := {};
+    
+    FOR node IN graph.nodes DO
+      IF NOT (node IN visited) THEN
+        component := Graph.dfs(graph, node, visited);
+        components := components WITH component;
+      END IF;
+    END FOR;
+    
+    RETURN components;
+  END PROCEDURE;
+
+  PROCEDURE Graph.dfs(graph, start, visited);
+    stack := {start};
+    component := {};
+    
+    WHILE #stack > 0 DO
+      node := arb(stack);
+      stack := stack - {node};
+      
+      IF NOT (node IN visited) THEN
+        visited := visited WITH node;
+        component := component WITH node;
+        
+        adjacent := Graph.get_adjacent(graph, node);
+        FOR neighbor IN adjacent DO
+          IF NOT (neighbor IN visited) THEN
+            stack := stack WITH neighbor;
+          END IF;
+        END FOR;
+        
+        backlinks := Graph.get_backlinks(graph, node);
+        FOR neighbor IN backlinks DO
+          IF NOT (neighbor IN visited) THEN
+            stack := stack WITH neighbor;
+          END IF;
+        END FOR;
+      END IF;
+    END WHILE;
+    
+    RETURN component;
+  END PROCEDURE;
+END;

@@ -1,0 +1,128 @@
+BEGIN
+  include "parser.setl";
+  include "graph.setl";
+  include "storage.setl";
+
+  Core := {
+    storage := OM,
+    graph := OM,
+    index := OM
+  };
+
+  PROCEDURE Core.new(storage);
+    core := Core;
+    core.storage := storage;
+    core.graph := Graph.new();
+    core.index := {};
+    Core.rebuild_index(core);
+    RETURN core;
+  END PROCEDURE;
+
+  PROCEDURE Core.rebuild_index(core);
+    notes := Storage.list_notes(core.storage);
+    core.index := {};
+    core.graph := Graph.new();
+    
+    FOR note_title IN notes DO
+      note := Storage.load_note(core.storage, note_title);
+      IF note /= OM THEN
+        parsed := Parser.parse(note);
+        core.index[note_title] := parsed;
+        Graph.add_node(core.graph, note_title);
+        
+        FOR link IN parsed.links DO
+          Graph.add_edge(core.graph, note_title, link);
+        END FOR;
+        
+        FOR tag IN parsed.tags DO
+          Graph.add_tag(core.graph, note_title, tag);
+        END FOR;
+      END IF;
+    END FOR;
+  END PROCEDURE;
+
+  PROCEDURE Core.create_note(core, title, content);
+    IF Storage.note_exists(core.storage, title) THEN
+      RETURN "Error: Note already exists";
+    END IF;
+    
+    Storage.save_note(core.storage, title, content);
+    Core.rebuild_index(core);
+    RETURN "Note created: " + title;
+  END PROCEDURE;
+
+  PROCEDURE Core.update_note(core, title, content);
+    IF NOT Storage.note_exists(core.storage, title) THEN
+      RETURN "Error: Note not found";
+    END IF;
+    
+    Storage.save_note(core.storage, title, content);
+    Core.rebuild_index(core);
+    RETURN "Note updated: " + title;
+  END PROCEDURE;
+
+  PROCEDURE Core.delete_note(core, title);
+    IF NOT Storage.note_exists(core.storage, title) THEN
+      RETURN "Error: Note not found";
+    END IF;
+    
+    Storage.delete_note(core.storage, title);
+    Core.rebuild_index(core);
+    RETURN "Note deleted: " + title;
+  END PROCEDURE;
+
+  PROCEDURE Core.get_note(core, title);
+    RETURN Storage.load_note(core.storage, title);
+  END PROCEDURE;
+
+  PROCEDURE Core.search_notes(core, query);
+    results := {};
+    lower_query := tolower(query);
+    
+    FOR title IN Core.list_notes(core) DO
+      note := Storage.load_note(core.storage, title);
+      IF note /= OM THEN
+        lower_title := tolower(title);
+        lower_content := tolower(note);
+        
+        IF index(lower_title, lower_query) > 0 OR index(lower_content, lower_query) > 0 THEN
+          results := results WITH title;
+        END IF;
+      END IF;
+    END FOR;
+    
+    RETURN results;
+  END PROCEDURE;
+
+  PROCEDURE Core.get_backlinks(core, title);
+    RETURN Graph.get_backlinks(core.graph, title);
+  END PROCEDURE;
+
+  PROCEDURE Core.get_graph(core);
+    RETURN Graph.export(core.graph);
+  END PROCEDURE;
+
+  PROCEDURE Core.get_notes_by_tag(core, tag);
+    RETURN Graph.get_notes_by_tag(core.graph, tag);
+  END PROCEDURE;
+
+  PROCEDURE Core.list_notes(core);
+    RETURN Storage.list_notes(core.storage);
+  END PROCEDURE;
+
+  PROCEDURE Core.get_links(core, title);
+    IF core.index[title] /= OM THEN
+      RETURN core.index[title].links;
+    ELSE
+      RETURN {};
+    END IF;
+  END PROCEDURE;
+
+  PROCEDURE Core.get_tags(core, title);
+    IF core.index[title] /= OM THEN
+      RETURN core.index[title].tags;
+    ELSE
+      RETURN {};
+    END IF;
+  END PROCEDURE;
+END;

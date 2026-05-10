@@ -1,0 +1,136 @@
+BEGIN
+  Storage := {
+    base_dir := ""
+  };
+
+  PROCEDURE Storage.new(base_dir);
+    storage := Storage;
+    storage.base_dir := base_dir;
+    Storage.ensure_dir(base_dir);
+    RETURN storage;
+  END PROCEDURE;
+
+  PROCEDURE Storage.ensure_dir(dir);
+    cmd := "mkdir -p '" + dir + "'";
+    system(cmd);
+  END PROCEDURE;
+
+  PROCEDURE Storage.get_note_path(storage, title);
+    safe_title := Parser.normalize_title(title);
+    RETURN storage.base_dir + "/" + safe_title + ".md";
+  END PROCEDURE;
+
+  PROCEDURE Storage.note_exists(storage, title);
+    path := Storage.get_note_path(storage, title);
+    cmd := "test -f '" + path + "'";
+    RETURN system(cmd) = 0;
+  END PROCEDURE;
+
+  PROCEDURE Storage.save_note(storage, title, content);
+    IF NOT Parser.is_valid_title(title) THEN
+      RETURN "Error: Invalid title";
+    END IF;
+    
+    path := Storage.get_note_path(storage, title);
+    cmd := "echo '" + Storage.escape_content(content) + "' > '" + path + "'";
+    system(cmd);
+    RETURN "Success";
+  END PROCEDURE;
+
+  PROCEDURE Storage.load_note(storage, title);
+    path := Storage.get_note_path(storage, title);
+    IF NOT Storage.note_exists(storage, title) THEN
+      RETURN OM;
+    END IF;
+    
+    cmd := "cat '" + path + "'";
+    RETURN system_output(cmd);
+  END PROCEDURE;
+
+  PROCEDURE Storage.delete_note(storage, title);
+    path := Storage.get_note_path(storage, title);
+    IF Storage.note_exists(storage, title) THEN
+      cmd := "rm '" + path + "'";
+      system(cmd);
+      RETURN "Success";
+    ELSE
+      RETURN "Error: Note not found";
+    END IF;
+  END PROCEDURE;
+
+  PROCEDURE Storage.list_notes(storage);
+    cmd := "find '" + storage.base_dir + "' -name '*.md' -type f | sed 's|.*/||' | sed 's|\\.md$||'";
+    output := system_output(cmd);
+    
+    IF output = "" THEN
+      RETURN {};
+    END IF;
+    
+    lines := split(output, "\n");
+    notes := {};
+    
+    FOR line IN lines DO
+      IF length(line) > 0 THEN
+        notes := notes WITH line;
+      END IF;
+    END FOR;
+    
+    RETURN notes;
+  END PROCEDURE;
+
+  PROCEDURE Storage.escape_content(content);
+    escaped := "";
+    FOR c IN content DO
+      IF c = "'" THEN
+        escaped := escaped + "'\"'\"'";
+      ELSE
+        escaped := escaped + c;
+      END IF;
+    END FOR;
+    RETURN escaped;
+  END PROCEDURE;
+
+  PROCEDURE Storage.get_metadata(storage, title);
+    path := Storage.get_note_path(storage, title);
+    IF NOT Storage.note_exists(storage, title) THEN
+      RETURN OM;
+    END IF;
+    
+    cmd := "stat -f '%Sm' -t '%Y-%m-%d %H:%M:%S' '" + path + "'";
+    modified := system_output(cmd);
+    
+    cmd := "wc -l < '" + path + "'";
+    lines := system_output(cmd);
+    
+    RETURN {
+      title := title,
+      path := path,
+      modified := modified,
+      lines := lines
+    };
+  END PROCEDURE;
+
+  PROCEDURE Storage.search_in_content(storage, query);
+    results := {};
+    notes := Storage.list_notes(storage);
+    lower_query := tolower(query);
+    
+    FOR title IN notes DO
+      content := Storage.load_note(storage, title);
+      IF content /= OM THEN
+        lower_content := tolower(content);
+        IF index(lower_content, lower_query) > 0 THEN
+          results := results WITH title;
+        END IF;
+      END IF;
+    END FOR;
+    
+    RETURN results;
+  END PROCEDURE;
+
+  PROCEDURE Storage.backup(storage, backup_dir);
+    Storage.ensure_dir(backup_dir);
+    cmd := "cp -r '" + storage.base_dir + "'/* '" + backup_dir + "/'";
+    RETURN system(cmd) = 0;
+  END PROCEDURE;
+END;

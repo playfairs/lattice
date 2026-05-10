@@ -1,0 +1,102 @@
+#!/bin/bash
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LATTICE_LIB="${LATTICE_LIB:-$SCRIPT_DIR/../..}"
+
+NOTES_DIR="${NOTES_DIR:-$HOME/.lattice/notes}"
+
+SETL_MAIN="$LATTICE_LIB/src/setl/main.setl"
+
+if [[ ! -f "$SETL_MAIN" ]]; then
+    echo "Error: SETL main file not found at $SETL_MAIN"
+    exit 1
+fi
+
+mkdir -p "$NOTES_DIR"
+
+case "$1" in
+    "gui")
+        exec python3 "$SCRIPT_DIR/gui.py" "$NOTES_DIR"
+        ;;
+    "create")
+        if [[ $# -lt 3 ]]; then
+            echo "Usage: $0 create <title> <content>"
+            exit 1
+        fi
+        gawk -f "$SETL_MAIN" "$NOTES_DIR" "create" "$2" "$3"
+        ;;
+    "edit")
+        if [[ $# -lt 3 ]]; then
+            echo "Usage: $0 edit <title> <content>"
+            exit 1
+        fi
+        gawk -f "$SETL_MAIN" "$NOTES_DIR" "edit" "$2" "$3"
+        ;;
+    "delete")
+        if [[ $# -lt 2 ]]; then
+            echo "Usage: $0 delete <title>"
+            exit 1
+        fi
+        gawk -f "$SETL_MAIN" "$NOTES_DIR" "delete" "$2"
+        ;;
+    "get")
+        if [[ $# -lt 2 ]]; then
+            echo "Usage: $0 get <title>"
+            exit 1
+        fi
+        gawk -f "$SETL_MAIN" "$NOTES_DIR" "get" "$2"
+        ;;
+    "search")
+        if [[ $# -lt 2 ]]; then
+            echo "Usage: $0 search <query>"
+            exit 1
+        fi
+        gawk -f "$SETL_MAIN" "$NOTES_DIR" "search" "$2"
+        ;;
+    "backlinks")
+        if [[ $# -lt 2 ]]; then
+            echo "Usage: $0 backlinks <title>"
+            exit 1
+        fi
+        gawk -f "$SETL_MAIN" "$NOTES_DIR" "backlinks" "$2"
+        ;;
+    "graph")
+        gawk -f "$SETL_MAIN" "$NOTES_DIR" "graph"
+        ;;
+    "tags")
+        if [[ $# -lt 2 ]]; then
+            echo "Usage: $0 tags <tag>"
+            exit 1
+        fi
+        gawk -f "$SETL_MAIN" "$NOTES_DIR" "tags" "$2"
+        ;;
+    "list")
+        gawk -f "$SETL_MAIN" "$NOTES_DIR" "search" ""
+        ;;
+    *)
+        cat << EOF
+Lattice - Graph-based markdown/wiki editor
+
+Usage: $0 <command> [args...]
+
+Commands:
+  gui                    Launch GUI interface
+  create <title> <content>  Create a new note
+  edit <title> <content>    Edit an existing note
+  delete <title>           Delete a note
+  get <title>              Get note content
+  search <query>           Search notes
+  backlinks <title>        Show backlinks for note
+  graph                    Export graph data
+  tags <tag>               List notes by tag
+  list                     List all notes
+
+Examples:
+  $0 create "My Note" "#mytag This is a [[linked]] note"
+  $0 search "tag"
+  $0 backlinks "My Note"
+EOF
+        ;;
+esac
